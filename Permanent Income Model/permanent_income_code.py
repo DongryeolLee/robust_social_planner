@@ -1,13 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-
+# Parameters
+T = 2000        # Time horizon
+S = 2           # Impulse date
+ρ = 0.00663     # rate of return on assets
+ν = 0.00373     # constant in the log income process
+σ1 = 0.108*1.33 # Permanent shock
+σ2 = 0.155*1.33 # Transitory shock
+Dy = np.array([[0.704],[0],[-0.154]])
 
 
 # =============================================================================
 #  2.3: Impulse response -- Y
 # =============================================================================
-def income_path(T=2000, S=2, sigma1=0.14364, sigma2=0.20615):
+def income_path(T=T, S=S, sigma1=σ1, sigma2=σ2):
     """
     Time path of log income given shock sequence.
     
@@ -32,17 +39,17 @@ def income_path(T=2000, S=2, sigma1=0.14364, sigma2=0.20615):
     
     for t in range(1, T+S-1):
         X1[t+1] = 0.704 * X1[t] + sigma1 * w[t+1]
-        Y1[t+1] = Y1[t] + X1[t+1]
         X2[t+1] = X2[t] - 0.154 * X2[t-1] + sigma2 * w[t+1]
+        Y1[t+1] = Y1[t] + X1[t+1]
         Y2[t+1] = X2[t+1]
+    
     return Y1, Y2
 
 
 # =============================================================================
 # 2.3： Impulse response -- C + Y
 # =============================================================================
-def consumption_income_ratio_path(M, T=2000, S=2, rho=0.00663, nu=0.00373,
-								  sigma1=0.14364, sigma2=0.20615):
+def consumption_income_ratio_path(M, k_bar=0, Dy=Dy, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
     """
     Time path of log consumption-income ratio given shock sequence
      
@@ -62,7 +69,7 @@ def consumption_income_ratio_path(M, T=2000, S=2, rho=0.00663, nu=0.00373,
     =======
     C1: the impulse response path of log consumption-income ratio regarding 
         the permanent shock
-    C2: the impulse response path of og consumption-income ratio regarding 
+    C2: the impulse response path of log consumption-income ratio regarding 
         the transitory shock
     """
     w = np.zeros(T+S)
@@ -72,11 +79,89 @@ def consumption_income_ratio_path(M, T=2000, S=2, rho=0.00663, nu=0.00373,
     C2 = np.zeros(T+S)
     w[S] = 1
     
+    c_bar = np.log((np.exp(rho) - np.exp(nu))*k_bar+1)
+    M = M * (1 + k_bar * (np.exp(rho - nu) - 1))
+    
+    
     for t in range(1, T+S-1):
         X1[t+1] = 0.704 * X1[t] + sigma1 * w[t+1]
         X2[t+1] = X2[t] - 0.154 * X2[t-1] + sigma2 * w[t+1]
         # Here I solved the explicit equations of C on X
-        C1[t+1] = C1[t] - np.exp(rho - nu) * M[0] * X1[t] + M[0] * X1[t+1]
-        C2[t+1] = C2[t] - np.exp(rho - nu) * (M[1] * X2[t] + M[2] * X2[t-1]) + (M[1] * X2[t+1] + M[2] * X2[t])
+        C1[t+1] = C1[t] + M[0] * X1[t+1] - \
+                    np.exp(rho - nu) * M[0] * X1[t]  - \
+                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * Dy[0] * X1[t] - \
+                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * sigma1 * w[t+1]
+        C2[t+1] = C2[t] + (M[1] * X2[t+1] + M[2] * X2[t]) - \
+                    np.exp(rho - nu) * (M[1] * X2[t] + M[2] * X2[t-1]) - \
+                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * (Dy[1] * X2[t+1] + Dy[2] * X2[t]) - \
+                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * sigma2 * w[t+1]
        
     return C1, C2
+
+
+def consumption_path(M, k_bar=0, Dy=Dy, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
+    """
+    Time path of log consumption-income ratio given shock sequence
+     
+	Input
+	=======
+	M: the solution matrix of expressing the non-financial income contribution 
+	   to the log consumption-income ratio with respect to the states, i.e.,
+	   M = \lambda D'(I = \lambda A)^{-1}
+	rho: the asset return, default 0.00663
+	nu: the constant in the logarithm of income process, default 0.00373
+	T: the time horizon, default 2000
+	S: Impulse date, default 2
+	sigma1: permanent shock, default 0.14364
+	sigma2: transitory shock, default 0.20615
+   
+    Output
+    =======
+    C1Y1: the impulse response path of log consumption regarding the permanent shock
+    C2Y2: the impulse response path of log consumption regarding the transitory shock
+    """
+    C1, C2 = consumption_income_ratio_path(M, k_bar=k_bar, Dy=Dy, T=T, S=S, rho=rho, nu=nu, sigma1=sigma1, sigma2=sigma2)
+    Y1, Y2 = income_path(T=T, S=S, sigma1=sigma1, sigma2=sigma2)
+    
+    C1Y1 = C1 + Y1
+    C2Y2 = C2 + Y2
+    
+    return C1Y1, C2Y2
+
+
+# =============================================================================
+# Plot impulse responses (non-interactive)
+# =============================================================================
+def plot_responses(R1, R2, T=T, S=S):
+    """
+    Time path of log consumption-income ratio given shock sequence
+     
+	Input
+	=======
+    R1: permanent shock responses
+	R2: transitory shock responses
+	T: the time horizon, default 2000
+	S: Impulse date, default 2
+   
+    Output
+    =======
+    The figure of responses
+    """
+    # Plot income responses
+    fig, axes = plt.subplots(2, 1,figsize=(8,8))
+    plt.subplots_adjust(hspace=0.5)
+    p_args = {'lw': 2, 'alpha': 0.7}
+
+    for ax in axes:
+        ax.grid(alpha=0.5)
+        ax.set_xlim(0,40)
+        ax.set_xlabel(r'Quarters')
+        ax.set_ylim(0, 0.6)
+
+    ax = axes[0]
+    ax.plot(list(range(T)), R1[S:], 'g-', **p_args) 
+
+    ax = axes[1]
+    ax.plot(list(range(T)), R2[S:], 'b-', **p_args)
+
+    return
