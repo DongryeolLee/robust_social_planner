@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.matlib as nm
 import matplotlib.pyplot as plt
 
 # Parameters
@@ -8,7 +9,8 @@ S = 2           # Impulse date
 ν = 0.00373     # constant in the log income process
 σ1 = 0.108*1.33 # Permanent shock
 σ2 = 0.155*1.33 # Transitory shock
-Dy = np.array([[0.704],[0],[-0.154]])
+Ax = np.array([[0.704,0,0],[0,1,-0.154],[0,1,0]])
+DyT = np.array([[0.704,0,0],[0,0,-0.154]])
 
 
 # =============================================================================
@@ -30,26 +32,28 @@ def income_path(T=T, S=S, sigma1=σ1, sigma2=σ2):
     Y1: the impulse response path of income regarding the permanent shock
     Y2: the impulse response path of income regarding the transitory shock
     """
-    w = np.zeros(T+S)
-    X1 = np.zeros(T+S)
-    X2 = np.zeros(T+S)
-    Y1 = np.zeros(T+S) 
-    Y2 = np.zeros(T+S)  
-    w[S] = 1
+    w = nm.zeros((1,T+S))
+    X = nm.zeros((3,T+S))
+    Y = nm.zeros((2,T+S))
+    Bx = np.matrix([[sigma1],[sigma2],[0]])
+    FyT = Bx[:2,:]
+    w[:,S] = 1
     
     for t in range(1, T+S-1):
-        X1[t+1] = 0.704 * X1[t] + sigma1 * w[t+1]
-        X2[t+1] = X2[t] - 0.154 * X2[t-1] + sigma2 * w[t+1]
-        Y1[t+1] = Y1[t] + X1[t+1]
-        Y2[t+1] = X2[t+1]
+        X[:,t+1] = Ax @ X[:,t] + Bx @ w[:,t+1]
+        Y[:,t+1] = Y[:,t] + DyT @ X[:,t] + FyT @ w[:,t+1]
+    
+    Y1 = np.asarray(Y[0,:]).flatten()
+    Y2 = np.asarray(Y[1,:]).flatten()
     
     return Y1, Y2
+
 
 
 # =============================================================================
 # 2.3： Impulse response -- C + Y
 # =============================================================================
-def consumption_income_ratio_path(M, k_bar=0, Dy=Dy, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
+def consumption_income_ratio_path(M, k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
     """
     Time path of log consumption-income ratio given shock sequence
      
@@ -72,34 +76,33 @@ def consumption_income_ratio_path(M, k_bar=0, Dy=Dy, T=T, S=S, rho=ρ, nu=ν, si
     C2: the impulse response path of log consumption-income ratio regarding 
         the transitory shock
     """
-    w = np.zeros(T+S)
-    X1 = np.zeros(T+S)
-    X2 = np.zeros(T+S)
-    C1 = np.zeros(T+S)
-    C2 = np.zeros(T+S)
-    w[S] = 1
+    w = nm.zeros((1,T+S))
+    X = nm.zeros((3,T+S))
+    C = nm.zeros((2,T+S))
+    Bx = np.matrix([[sigma1],[sigma2],[0]])
     
-    c_bar = np.log((np.exp(rho) - np.exp(nu))*k_bar+1)
-    M = M * (1 + k_bar * (np.exp(rho - nu) - 1))
+    lam = np.exp(nu - rho)
+    c_bar = np.log((np.exp(rho) - np.exp(nu)) * k_bar + 1)
+    G = np.exp(rho - c_bar) - np.exp(nu - c_bar)
+    M_star = M * (1 + k_bar * G)
     
     
     for t in range(1, T+S-1):
-        X1[t+1] = 0.704 * X1[t] + sigma1 * w[t+1]
-        X2[t+1] = X2[t] - 0.154 * X2[t-1] + sigma2 * w[t+1]
+        X[:,t+1] = Ax @ X[:,t] + Bx @ w[:,t+1]
         # Here I solved the explicit equations of C on X
         C1[t+1] = C1[t] + M[0] * X1[t+1] - \
                     np.exp(rho - nu) * M[0] * X1[t]  - \
-                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * Dy[0] * X1[t] - \
-                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * sigma1 * w[t+1]
+                    k_bar * G * Dy[0] * X1[t] - \
+                    k_bar * G * sigma1 * w[t+1]
         C2[t+1] = C2[t] + (M[1] * X2[t+1] + M[2] * X2[t]) - \
                     np.exp(rho - nu) * (M[1] * X2[t] + M[2] * X2[t-1]) - \
-                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * (Dy[1] * X2[t+1] + Dy[2] * X2[t]) - \
-                    k_bar * (np.exp(rho - c_bar) - np.exp(nu - c_bar)) * sigma2 * w[t+1]
+                    k_bar * G * (Dy[1] * X2[t+1] + Dy[2] * X2[t]) - \
+                    k_bar * G * sigma2 * w[t+1]
        
     return C1, C2
 
 
-def consumption_path(M, k_bar=0, Dy=Dy, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
+def consumption_path(M, k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
     """
     Time path of log consumption-income ratio given shock sequence
      
@@ -120,7 +123,7 @@ def consumption_path(M, k_bar=0, Dy=Dy, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sig
     C1Y1: the impulse response path of log consumption regarding the permanent shock
     C2Y2: the impulse response path of log consumption regarding the transitory shock
     """
-    C1, C2 = consumption_income_ratio_path(M, k_bar=k_bar, Dy=Dy, T=T, S=S, rho=rho, nu=nu, sigma1=sigma1, sigma2=sigma2)
+    C1, C2 = consumption_income_ratio_path(M, k_bar=k_bar, T=T, S=S, rho=rho, nu=nu, sigma1=sigma1, sigma2=sigma2)
     Y1, Y2 = income_path(T=T, S=S, sigma1=sigma1, sigma2=sigma2)
     
     C1Y1 = C1 + Y1
