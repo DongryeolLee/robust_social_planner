@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.matlib as nm
+import numpy.linalg as nl
 import matplotlib.pyplot as plt
 
 # Parameters
@@ -51,21 +52,19 @@ def income_path(T=T, S=S, sigma1=σ1, sigma2=σ2):
 
 
 # =============================================================================
-# 2.3： Impulse response -- C + Y
+# 2.3： Impulse response -- C
 # =============================================================================
-def consumption_income_ratio_path(M, k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
+def consumption_income_ratio_path(k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
     """
     Time path of log consumption-income ratio given shock sequence
      
 	Input
 	=======
-	M: the solution matrix of expressing the non-financial income contribution 
-	   to the log consumption-income ratio with respect to the states, i.e.,
-	   M = \lambda D'(I = \lambda A)^{-1}
-	rho: the asset return, default 0.00663
-	nu: the constant in the logarithm of income process, default 0.00373
+    k_bar: steady state capital, default 0
 	T: the time horizon, default 2000
 	S: Impulse date, default 2
+	rho: the asset return, default 0.00663
+	nu: the constant in the logarithm of income process, default 0.00373
 	sigma1: permanent shock, default 0.14364
 	sigma2: transitory shock, default 0.20615
    
@@ -78,39 +77,40 @@ def consumption_income_ratio_path(M, k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ
     """
     w = nm.zeros((1,T+S))
     X = nm.zeros((3,T+S))
-    C = nm.zeros((2,T+S))
+    C = nm.zeros((2,T+S))   
     Bx = np.matrix([[sigma1],[sigma2],[0]])
+    FyT = Bx[:2,:]
+    w[:,S] = 1
     
     lam = np.exp(nu - rho)
     c_bar = np.log((np.exp(rho) - np.exp(nu)) * k_bar + 1)
     G = np.exp(rho - c_bar) - np.exp(nu - c_bar)
+    I = nm.eye(3)
+    M = lam * DyT @ nl.inv(I - lam * Ax)
     M_star = M * (1 + k_bar * G)
-    
     
     for t in range(1, T+S-1):
         X[:,t+1] = Ax @ X[:,t] + Bx @ w[:,t+1]
-        # Here I solved the explicit equations of C on X
-        C1[t+1] = C1[t] + M[0] * X1[t+1] - \
-                    np.exp(rho - nu) * M[0] * X1[t]  - \
-                    k_bar * G * Dy[0] * X1[t] - \
-                    k_bar * G * sigma1 * w[t+1]
-        C2[t+1] = C2[t] + (M[1] * X2[t+1] + M[2] * X2[t]) - \
-                    np.exp(rho - nu) * (M[1] * X2[t] + M[2] * X2[t-1]) - \
-                    k_bar * G * (Dy[1] * X2[t+1] + Dy[2] * X2[t]) - \
-                    k_bar * G * sigma2 * w[t+1]
-       
+        dY =  DyT @ X[:,t] + FyT @ w[:,t+1]
+        C[:,t+1] = C[:,t] - k_bar * G * dY - (1/lam) * M_star @ X[:,t] + M_star @ X[:,t+1]
+        
+    C1 = np.asarray(C[0,:]).flatten()
+    C2 = np.asarray(C[1,:]).flatten()
+    
     return C1, C2
 
 
-def consumption_path(M, k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
+
+# =============================================================================
+# 2.3： Impulse response -- C + Y
+# =============================================================================
+def consumption_path(k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2):
     """
     Time path of log consumption-income ratio given shock sequence
      
 	Input
 	=======
-	M: the solution matrix of expressing the non-financial income contribution 
-	   to the log consumption-income ratio with respect to the states, i.e.,
-	   M = \lambda D'(I = \lambda A)^{-1}
+    k_bar: steday state capital, default 0
 	rho: the asset return, default 0.00663
 	nu: the constant in the logarithm of income process, default 0.00373
 	T: the time horizon, default 2000
@@ -123,7 +123,8 @@ def consumption_path(M, k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, sigma2=σ2
     C1Y1: the impulse response path of log consumption regarding the permanent shock
     C2Y2: the impulse response path of log consumption regarding the transitory shock
     """
-    C1, C2 = consumption_income_ratio_path(M, k_bar=k_bar, T=T, S=S, rho=rho, nu=nu, sigma1=sigma1, sigma2=sigma2)
+    C1, C2 = consumption_income_ratio_path(k_bar=k_bar, T=T, S=S, rho=rho, nu=nu, 
+                                           sigma1=sigma1, sigma2=sigma2)
     Y1, Y2 = income_path(T=T, S=S, sigma1=sigma1, sigma2=sigma2)
     
     C1Y1 = C1 + Y1
