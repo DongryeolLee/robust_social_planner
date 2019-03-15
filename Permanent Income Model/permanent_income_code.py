@@ -87,12 +87,12 @@ def consumption_income_ratio_path(k_bar=0, T=T, S=S, rho=ρ, nu=ν, sigma1=σ1, 
     G = np.exp(rho - c_bar) - np.exp(nu - c_bar)
     I = nm.eye(3)
     M = lam * DyT @ nl.inv(I - lam * Ax)
-    M_star = M * (1 + k_bar * G)
+    M_star = M * (1 - k_bar * G)
     
     for t in range(1, T+S-1):
         X[:,t+1] = Ax @ X[:,t] + Bx @ w[:,t+1]
         dY =  DyT @ X[:,t] + FyT @ w[:,t+1]
-        C[:,t+1] = C[:,t] - k_bar * G * dY - (1/lam) * M_star @ X[:,t] + M_star @ X[:,t+1]
+        C[:,t+1] = C[:,t] - k_bar * G * dY + M_star @ X[:,t+1] - (1/lam) * M_star @ X[:,t] 
         
     C1 = np.asarray(C[0,:]).flatten()
     C2 = np.asarray(C[1,:]).flatten()

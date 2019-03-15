@@ -40,7 +40,7 @@ Fy = np.array([σ1,σ2])
 #==============================================================================
 # Function: Solve for J matrix and matrix for stable dynamics
 #==============================================================================
-def solve_habit_persistence(alpha=0.5, eta=2, psi=0.3, print_option=False):
+def solve_habit_persistence(alpha=0.5, psi=0.3, eta=2, print_option=False):
     """
     This function solves the matrix J and stable dynamic matrix A
     in Habit Persistence Section of the RA notes. Here we assume
@@ -324,15 +324,15 @@ def habit_persistence_consumption_path(A, N1, N2, Ct, T=100, print_option=False)
 #==============================================================================
 # Function: Solve for Sv
 #==============================================================================
-def get_Sv(A, J, N1, N2, Ut):
+def get_Sv(J, A, N1, N2, Ut):
     """
     Solve for Sv
     
     Input
     =========
     (The inputs are obtained from solve_habit_persistence)
-    A: stable dynamic matrix A
     J: matrix J
+    A: stable dynamic matrix A
     N1, N2: stable dynamics for costates
     Ut: the utility function
     
@@ -403,7 +403,7 @@ def solve_sv(Sv, xi):
 
 
 #==============================================================================
-# Function: Calculate SvB
+# Function: Calculate Sv'B + Fy
 #==============================================================================
 def get_SvBFy(Sv):
     """
@@ -422,7 +422,6 @@ def get_SvBFy(Sv):
     SvBFy = SvB + Fy
     
     return SvBFy
-
 
 
 
@@ -458,9 +457,9 @@ def create_fig(R, C, fs=(8,8), X=40):
 
 
 #==============================================================================
-# Function: Plot the habit persistence consumption responses
+# Function: Solve the habit persistence consumption and uncertainty price
 #==============================================================================
-def solve_habit_consumption_path(alpha=0.5, eta=2, psi=0.3, T=100):
+def habit_consumption_and_uncertainty_price(alpha=0.5, psi=0.3, eta=2, T=100):
     """
     Create the habit persistence consumption response paths.
     
@@ -475,14 +474,19 @@ def solve_habit_consumption_path(alpha=0.5, eta=2, psi=0.3, T=100):
     ==========
     C1Y1: the path of consumption response regarding the permanent shock
     C2Y2: the path of consumption response regarding the transitory shock
+    SvBFy: uncertainty price vector
     
     """    
     # Solve the habit persistence model
-    _, A, N1, N2, Ct, _ = solve_habit_persistence(alpha = alpha, psi = psi, eta = eta)
+    J, A, N1, N2, Ct, Ut = solve_habit_persistence(alpha = alpha, psi = psi, eta = eta)
 
     
     # Compute the time paths for the consumption responses 
     C1Y1, C2Y2 = habit_persistence_consumption_path(A, N1, N2, Ct, T=T)
-
     
-    return C1Y1, C2Y2
+    # Compute uncertainty price
+    Sv = get_Sv(J, A, N1, N2, Ut)
+    SvBFy = get_SvBFy(Sv)
+    SvBFy = [float('%.3g' % x) for x in SvBFy[0]]
+    
+    return C1Y1, C2Y2, SvBFy
